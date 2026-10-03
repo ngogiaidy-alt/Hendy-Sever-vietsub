@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: hendy_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hendy_db}
+      POSTGRES_USER: ${POSTGRES_USER:-hendy_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hendy_secure_pass_2026}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init_schema.sql:/docker-entrypoint-initdb.d/init_schema.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - hendy_network
+
+  # 2. Redis Message Queue & Buffer
+  redis:
+    image: redis:7-alpine
+    container_name: hendy_redis
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    ports:
+      - "6379:6379"
+    networks:
+      - hendy_network
+
+  # 3. API Gateway & GitHub Service (Node.js/Express)
+  api-gateway:
+    build:
+      context: ../api-gateway
+      dockerfile: Dockerfile
+    container_name: hendy_api_gateway
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-hendy_secure_webhook_secret_2026}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hendy_admin}:${POSTGRES_PASSWORD:-hendy_secure_pass_2026}@postgres:5432/${POSTGRES_DB:-hendy_db}
+    ports:
+      - "4000:4000"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - hendy_network
+
+  # 4. Python Engine & Worker (Whisper ASR, Audio Ducking, 20 Tabs Ingest)
+  python-engine:
+    build:
+      context: ../python-engine
+      dockerfile: Dockerfile
+    container_name: hendy_python_worker
+    restart: unless-stopped
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      ENABLE_CUDA: ${ENABLE_CUDA:-0}
+      DUCKING_ATTENUATION_DB: ${DUCKING_ATTENUATION_DB:--14.0}
+      DUCKING_THRESHOLD_DB: ${DUCKING_THRESHOLD_DB:--22.0}
+      WORKSPACE_ROOT: /tmp/hendy_builds
+    volumes:
+      - worker_workspace:/tmp/hendy_builds
+    # Deploy GPU acceleration if NVIDIA container toolkit is present
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - hendy_network
+
+  # 5. Frontend Dashboard UI (React 19 / Vite)
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: hendy_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - hendy_network
+
+  # 6. Nginx Ingress Reverse Proxy
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: hendy_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - api-gateway
+      - python-engine
+    networks:
+      - hendy_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  worker_workspace:
+
+networks:
+  hendy_network:
+    driver: bridge

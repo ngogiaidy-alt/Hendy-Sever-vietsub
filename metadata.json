@@ -1,0 +1,7 @@
+{
+  "name": "Hendy-Server DevOps & Media Automation Engine",
+  "description": "Full-stack developer platform featuring GitHub API Gateway, CI/CD automated build worker, VIETSUB PRO Whisper ASR & audio ducking engine, and DevOps infrastructure.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

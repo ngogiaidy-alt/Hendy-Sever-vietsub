@@ -1,0 +1,24 @@
+# Hendy-Server / Python Engine & Media Node Dependencies
+# Core Framework & Asynchronous Task Processing
+redis>=5.0.0
+requests>=2.31.0
+pydantic>=2.7.0
+aiohttp>=3.9.0
+
+# Speech Recognition & Deep Learning (VIETSUB PRO)
+openai-whisper>=20231117
+faster-whisper>=1.0.0
+torch>=2.2.0
+torchaudio>=2.2.0
+numpy>=1.26.0
+
+# Audio Processing & Signal Manipulation
+ffmpeg-python>=0.2.0
+scipy>=1.12.0
+soundfile>=0.12.1
+pydub>=0.25.1
+
+# DevOps & Git
+GitPython>=3.1.40
+docker>=7.0.0
+psutil>=5.9.8
